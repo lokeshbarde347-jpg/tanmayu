@@ -1,0 +1,7 @@
+{
+  "name": "VOLTGUARD // Smart Energy Theft & Abnormal Consumption Detection System",
+  "description": "IoT-powered edge anomaly detection system comparing expected load curves against continuous sensor telemetry to detect meter tampering, bypassing, and power tapping in real time.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+

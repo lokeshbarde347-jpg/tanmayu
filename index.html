@@ -1,0 +1,1678 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VOLTGUARD // Smart Energy Theft & Abnormal Consumption Detection System</title>
+  <meta name="description" content="IoT-powered edge anomaly detection system comparing expected load curves against continuous sensor telemetry to detect meter tampering, bypassing, and power tapping in real time." />
+  <meta property="og:title" content="VOLTGUARD // Smart Energy Theft & Abnormal Consumption Detection System" />
+  <meta property="og:description" content="IoT-powered edge anomaly detection system comparing expected load curves against continuous sensor telemetry to detect meter tampering, bypassing, and power tapping in real time." />
+  <meta property="og:type" content="website" />
+  <meta name="twitter:card" content="summary_large_image" />
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            abyss: '#050811',
+            slatepanel: '#0B1120',
+            panelborder: 'rgba(6, 182, 212, 0.18)',
+            cyanaccent: '#00F0FF',
+            crimsonalert: '#EF4444',
+            emeraldnominal: '#10B981',
+          },
+          fontFamily: {
+            mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'monospace'],
+          }
+        }
+      }
+    };
+  </script>
+
+  <style>
+    /* Cyber grid background */
+    body {
+      background-color: #050811;
+      background-image: 
+        radial-gradient(circle at 50% 0%, rgba(6, 182, 212, 0.12) 0%, transparent 60%),
+        radial-gradient(circle at 90% 40%, rgba(59, 130, 246, 0.08) 0%, transparent 40%),
+        linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+      background-size: 100% 100%, 100% 100%, 36px 36px, 36px 36px;
+      color: #E2E8F0;
+    }
+
+    /* Glow utilities */
+    .glow-cyan {
+      box-shadow: 0 0 25px -4px rgba(0, 240, 255, 0.35);
+    }
+    .glow-crimson {
+      box-shadow: 0 0 28px -2px rgba(239, 68, 68, 0.45);
+    }
+    .glow-emerald {
+      box-shadow: 0 0 25px -4px rgba(16, 185, 129, 0.35);
+    }
+
+    /* Pulse animation for alert status */
+    @keyframes alertPulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.65; transform: scale(1.05); }
+    }
+    .animate-alert-pulse {
+      animation: alertPulse 1.2s infinite ease-in-out;
+    }
+
+    /* Flowing electricity animation for topology lines */
+    @keyframes flowDashes {
+      to { stroke-dashoffset: -40; }
+    }
+    .cable-flow {
+      stroke-dasharray: 6, 6;
+      animation: flowDashes 1.2s linear infinite;
+    }
+    .cable-flow-alert {
+      stroke-dasharray: 8, 4;
+      animation: flowDashes 0.5s linear infinite;
+    }
+
+    /* Custom scrollbar for serial terminal */
+    .terminal-scroll::-webkit-scrollbar {
+      width: 6px;
+    }
+    .terminal-scroll::-webkit-scrollbar-track {
+      background: #090e1a;
+    }
+    .terminal-scroll::-webkit-scrollbar-thumb {
+      background: #00F0FF44;
+      border-radius: 3px;
+    }
+  </style>
+</head>
+<body class="min-h-screen text-slate-100 flex flex-col antialiased selection:bg-cyan-500/30 selection:text-cyan-200">
+
+  <!-- Toast Notification Container -->
+  <div id="toastContainer" class="fixed top-20 right-5 z-50 flex flex-col gap-3 max-w-sm pointer-events-none"></div>
+
+  <!-- FIXED GLASSMORPHISM NAVBAR -->
+  <header class="fixed top-0 left-0 right-0 z-40 bg-slate-950/80 backdrop-blur-md border-b border-cyan-500/20 transition-all">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      
+      <!-- Brand Logo -->
+      <a href="#" class="flex items-center gap-3 group">
+        <div class="w-10 h-10 rounded-xl bg-cyan-950/60 border border-cyan-400/40 flex items-center justify-center text-cyan-400 group-hover:glow-cyan transition">
+          <i class="fa-solid fa-bolt-lightning text-lg animate-pulse"></i>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="font-extrabold tracking-wider text-white text-lg font-mono">VOLTGUARD</span>
+            <span class="text-xs px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 font-mono font-semibold border border-cyan-500/30">SIH-2026</span>
+          </div>
+          <span class="text-[10px] text-slate-400 block -mt-0.5 tracking-tight font-mono">EDGE ANOMALY & THEFT TELEMETRY</span>
+        </div>
+      </a>
+
+      <!-- Center Navigation Links -->
+      <nav class="hidden md:flex items-center space-x-6 text-sm font-medium text-slate-300">
+        <a href="#overview" class="hover:text-cyan-400 transition-colors">Overview</a>
+        <a href="#telemetry" class="hover:text-cyan-400 transition-colors">Live Telemetry</a>
+        <a href="#topology" class="hover:text-cyan-400 transition-colors">Grid Topology</a>
+        <a href="#architecture" class="hover:text-cyan-400 transition-colors">Architecture</a>
+        <a href="#anpr" class="hover:text-cyan-400 transition-colors">Inspection & ANPR</a>
+        <a href="#impact" class="hover:text-cyan-400 transition-colors">Impact & Tech</a>
+      </nav>
+
+      <!-- Right Controls: Status Badge + Theft Simulator -->
+      <div class="flex items-center gap-3">
+        <!-- Live Node Status Indicator -->
+        <div id="navStatusBadge" class="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-900/90 border border-emerald-500/40 text-xs font-mono text-emerald-400 shadow-inner">
+          <span class="relative flex h-2 w-2">
+            <span id="navStatusPing" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span id="navStatusDot" class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+          </span>
+          <span id="navStatusText">NODE: ESP32_01 [NOMINAL]</span>
+        </div>
+
+        <!-- Quick Simulate Button -->
+        <button id="navSimulateBtn" class="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-white font-mono text-xs font-bold shadow-lg shadow-red-900/40 border border-red-400/30 transition-all hover:scale-105 active:scale-95">
+          <i class="fa-solid fa-triangle-exclamation"></i>
+          <span id="navSimulateText">⚡ Simulate Bypass/Theft</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN WRAPPER -->
+  <main class="flex-grow pt-24 pb-16 space-y-24 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
+
+    <!-- 1. HERO SECTION -->
+    <section id="overview" class="pt-6 pb-4">
+      <div class="max-w-4xl mx-auto text-center space-y-6">
+        
+        <!-- Terminal Init Pill -->
+        <div class="inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full bg-slate-900/90 border border-cyan-500/30 text-cyan-300 font-mono text-xs shadow-md">
+          <span class="text-cyan-400 animate-pulse">$</span>
+          <span>system.init() -&gt; real_time_theft_monitoring_active</span>
+          <span class="w-1.5 h-3 bg-cyan-400 inline-block animate-pulse"></span>
+        </div>
+
+        <h1 class="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-white leading-tight">
+          IoT-Powered <span class="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-teal-300 to-blue-500">Energy Theft</span> & Abnormal Consumption Detection
+        </h1>
+
+        <p class="text-slate-300 text-base sm:text-lg max-w-2xl mx-auto leading-relaxed">
+          Continuous edge-based anomaly detection comparing expected load curves against dual-sensor line telemetry to detect meter tampering, unmetered tapping, and phase bypass in sub-second intervals.
+        </p>
+
+        <!-- CTA Buttons -->
+        <div class="flex flex-wrap items-center justify-center gap-4 pt-2">
+          <a href="#telemetry" class="px-6 py-3 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold font-mono text-sm tracking-wide shadow-lg glow-cyan transition transform hover:-translate-y-0.5 flex items-center gap-2">
+            <i class="fa-solid fa-chart-line"></i>
+            Open Telemetry Dashboard
+          </a>
+          <a href="#architecture" class="px-6 py-3 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-cyan-300 font-semibold font-mono text-sm border border-cyan-500/30 hover:border-cyan-400/60 transition flex items-center gap-2">
+            <i class="fa-solid fa-microchip"></i>
+            View Hardware Architecture
+          </a>
+        </div>
+
+        <!-- Telemetry Spec Chips -->
+        <div class="pt-6 grid grid-cols-1 sm:grid-cols-3 gap-3 text-left">
+          <div class="bg-slate-900/60 backdrop-blur-md border border-slate-800/80 rounded-xl p-3.5 flex items-center gap-3">
+            <div class="w-9 h-9 rounded-lg bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 flex items-center justify-center font-mono">
+              <i class="fa-solid fa-wave-square"></i>
+            </div>
+            <div>
+              <div class="text-[11px] text-slate-400 font-mono uppercase">Sampling Mode</div>
+              <div class="text-sm font-bold text-white font-mono">Continuous 50Hz ADC</div>
+            </div>
+          </div>
+
+          <div class="bg-slate-900/60 backdrop-blur-md border border-slate-800/80 rounded-xl p-3.5 flex items-center gap-3">
+            <div class="w-9 h-9 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center font-mono">
+              <i class="fa-solid fa-bolt"></i>
+            </div>
+            <div>
+              <div class="text-[11px] text-slate-400 font-mono uppercase">ESP32 Edge Latency</div>
+              <div class="text-sm font-bold text-white font-mono">~120ms Threshold Trip</div>
+            </div>
+          </div>
+
+          <div class="bg-slate-900/60 backdrop-blur-md border border-slate-800/80 rounded-xl p-3.5 flex items-center gap-3">
+            <div class="w-9 h-9 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center font-mono">
+              <i class="fa-solid fa-network-wired"></i>
+            </div>
+            <div>
+              <div class="text-[11px] text-slate-400 font-mono uppercase">Feeder Grid Nodes</div>
+              <div class="text-sm font-bold text-emerald-400 font-mono">Active (Feeder 4B)</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- 2. PROBLEM VS PROPOSED SOLUTION (BENTO GRID) -->
+    <section class="space-y-6">
+      <div class="text-center max-w-xl mx-auto space-y-2">
+        <span class="text-xs font-mono text-cyan-400 tracking-wider uppercase">// Grid Vulnerability Analysis</span>
+        <h2 class="text-2xl sm:text-3xl font-bold text-white">Conventional Grid Failures vs. VOLTGUARD</h2>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        
+        <!-- Problem Card -->
+        <div class="rounded-2xl bg-gradient-to-b from-slate-900/90 to-red-950/20 border border-red-500/30 p-6 sm:p-8 space-y-5 relative overflow-hidden group hover:border-red-500/60 transition">
+          <div class="absolute -right-8 -top-8 w-32 h-32 bg-red-600/10 rounded-full blur-2xl pointer-events-none"></div>
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-red-950/70 border border-red-500/40 text-red-400 flex items-center justify-center">
+              <i class="fa-solid fa-skull-crossbones"></i>
+            </div>
+            <div>
+              <h3 class="text-lg font-bold text-white font-mono">The Energy Theft Crisis</h3>
+              <p class="text-xs text-red-400/90 font-mono">Unmetered Tapping & Manual Audit Blindspots</p>
+            </div>
+          </div>
+          
+          <ul class="space-y-3 text-sm text-slate-300">
+            <li class="flex items-start gap-2.5">
+              <i class="fa-solid fa-circle-xmark text-red-400 mt-1 flex-shrink-0"></i>
+              <span><strong>Physical Bypass Hooking:</strong> Criminal taps directly on overhead distribution cables before reaching the utility billing meter.</span>
+            </li>
+            <li class="flex items-start gap-2.5">
+              <i class="fa-solid fa-circle-xmark text-red-400 mt-1 flex-shrink-0"></i>
+              <span><strong>Magnetic & Optical Tampering:</strong> Neodymium magnets and optical sensor shunts slow down mechanical and electronic registers.</span>
+            </li>
+            <li class="flex items-start gap-2.5">
+              <i class="fa-solid fa-circle-xmark text-red-400 mt-1 flex-shrink-0"></i>
+              <span><strong>Months of Delayed Discovery:</strong> Utilities only recognize losses post-billing reconciliation cycle (30-60 days late), racking up billions in revenue loss.</span>
+            </li>
+          </ul>
+
+          <div class="pt-2 border-t border-red-500/20 flex items-center justify-between text-xs font-mono text-red-300">
+            <span>Global Utility Loss: <strong>$96 Billion/yr</strong></span>
+            <span class="px-2 py-0.5 rounded bg-red-500/20 border border-red-500/30">AT&amp;C Loss: ~21%</span>
+          </div>
+        </div>
+
+        <!-- Solution Card -->
+        <div class="rounded-2xl bg-gradient-to-b from-slate-900/90 to-cyan-950/20 border border-cyan-500/30 p-6 sm:p-8 space-y-5 relative overflow-hidden group hover:border-cyan-500/60 transition">
+          <div class="absolute -right-8 -top-8 w-32 h-32 bg-cyan-600/10 rounded-full blur-2xl pointer-events-none"></div>
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-cyan-950/70 border border-cyan-500/40 text-cyan-400 flex items-center justify-center">
+              <i class="fa-solid fa-shield-halved"></i>
+            </div>
+            <div>
+              <h3 class="text-lg font-bold text-white font-mono">The VOLTGUARD Edge Engine</h3>
+              <p class="text-xs text-cyan-400 font-mono">Mathematical Discrepancy & Instant Interdiction</p>
+            </div>
+          </div>
+          
+          <ul class="space-y-3 text-sm text-slate-300">
+            <li class="flex items-start gap-2.5">
+              <i class="fa-solid fa-circle-check text-cyan-400 mt-1 flex-shrink-0"></i>
+              <span><strong>Differential Current Conservation:</strong> Compares primary feeder current (SCT-013 CT) with aggregated downstream meter telemetry in real time.</span>
+            </li>
+            <li class="flex items-start gap-2.5">
+              <i class="fa-solid fa-circle-check text-cyan-400 mt-1 flex-shrink-0"></i>
+              <span><strong>Non-Invasive Sensor Fusion:</strong> High-precision ZMPT101B voltage transformer + split-core CTs require zero service disruption during deployment.</span>
+            </li>
+            <li class="flex items-start gap-2.5">
+              <i class="fa-solid fa-circle-check text-cyan-400 mt-1 flex-shrink-0"></i>
+              <span><strong>Automated Tripping & Cloud Dispatch:</strong> Immediate relay isolation option, MQTT telemetry sync, and instant patrol dispatch ticketing.</span>
+            </li>
+          </ul>
+
+          <div class="pt-2 border-t border-cyan-500/20 flex items-center justify-between text-xs font-mono text-cyan-300">
+            <span>Detection Velocity: <strong>&lt; 150 milliseconds</strong></span>
+            <span class="px-2 py-0.5 rounded bg-cyan-500/20 border border-cyan-500/30">Autonomous Inspection Ready</span>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- 3. INTERACTIVE LIVE TELEMETRY DASHBOARD (CORE FEATURE) -->
+    <section id="telemetry" class="space-y-6">
+      
+      <!-- Section Title & Status Pill -->
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+        <div>
+          <span class="text-xs font-mono text-cyan-400 uppercase tracking-widest">// Edge Sensor Telemetry Stream</span>
+          <h2 class="text-2xl sm:text-3xl font-extrabold text-white flex items-center gap-3">
+            Live Feeder Telemetry Dashboard
+            <span class="text-xs font-mono font-normal px-2.5 py-0.5 rounded-full bg-cyan-950 border border-cyan-500/30 text-cyan-300">ESP32-WROOM-32D</span>
+          </h2>
+        </div>
+        <div class="flex items-center gap-2">
+          <button id="audioToggleBtn" class="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 hover:border-cyan-400 text-xs font-mono text-slate-300 flex items-center gap-2 transition">
+            <i class="fa-solid fa-volume-high text-cyan-400" id="audioIcon"></i>
+            <span id="audioLabel">Siren Synth: ON</span>
+          </button>
+          <div class="text-xs font-mono text-slate-400 bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-800">
+            Refresh: <span class="text-cyan-400 font-bold">1.5s</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- DYNAMIC CRITICAL ALERT BANNER -->
+      <div id="dynamicAlertBanner" class="p-4 sm:p-5 rounded-2xl bg-emerald-950/40 border border-emerald-500/40 text-emerald-300 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 transition-all duration-300 shadow-lg">
+        <div class="flex items-center gap-3.5">
+          <div id="bannerIconWrapper" class="w-10 h-10 rounded-xl bg-emerald-900/60 border border-emerald-400/30 flex items-center justify-center text-emerald-300 text-lg flex-shrink-0">
+            <i class="fa-solid fa-shield-check" id="bannerIcon"></i>
+          </div>
+          <div>
+            <div id="bannerHeadline" class="font-mono font-bold text-sm sm:text-base text-emerald-200">
+              STATUS: ALL FEEDERS NOMINAL - NO ILLEGAL TAP DETECTED
+            </div>
+            <div id="bannerSubtext" class="text-xs text-emerald-400/80 font-mono mt-0.5">
+              Transformer Station #4B / Loop Circuit 01 · Differential Residual: &lt; 0.15A (Allowed tolerance margin)
+            </div>
+          </div>
+        </div>
+        <div class="flex items-center gap-3 font-mono text-xs w-full md:w-auto justify-between md:justify-end">
+          <span id="bannerTimestamp" class="text-slate-400">Live Timestamp: --:--:--</span>
+          <span id="bannerFeederId" class="px-2.5 py-1 rounded bg-slate-900/80 border border-emerald-500/30 text-emerald-300">FEEDER: TX-04B</span>
+        </div>
+      </div>
+
+      <!-- 4 REAL-TIME METRIC CARDS -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        
+        <!-- Metric 1: Line Voltage -->
+        <div class="bg-slate-900/70 backdrop-blur-md rounded-2xl border border-slate-800 p-5 space-y-3 hover:border-cyan-500/40 transition glow-card">
+          <div class="flex items-center justify-between text-slate-400">
+            <span class="text-xs font-mono font-semibold uppercase">RMS Voltage (V<sub>ac</sub>)</span>
+            <div class="w-7 h-7 rounded-lg bg-blue-950 border border-blue-500/30 text-blue-400 flex items-center justify-center text-xs">
+              <i class="fa-solid fa-gauge-high"></i>
+            </div>
+          </div>
+          <div class="flex items-baseline gap-2">
+            <span id="valVoltage" class="text-3xl sm:text-4xl font-extrabold font-mono text-white tracking-tight">230.8</span>
+            <span class="text-xs font-mono text-slate-400">Volts</span>
+          </div>
+          <div class="flex items-center justify-between text-xs font-mono text-slate-400 pt-1 border-t border-slate-800/80">
+            <span>ZMPT101B Sensor</span>
+            <span class="text-cyan-400">±2.0 V Drift</span>
+          </div>
+        </div>
+
+        <!-- Metric 2: Primary Current (Surges upon theft) -->
+        <div id="currentCard" class="bg-slate-900/70 backdrop-blur-md rounded-2xl border border-slate-800 p-5 space-y-3 hover:border-cyan-500/40 transition">
+          <div class="flex items-center justify-between text-slate-400">
+            <span class="text-xs font-mono font-semibold uppercase">Primary Current (I<sub>line</sub>)</span>
+            <div id="currentIconWrap" class="w-7 h-7 rounded-lg bg-cyan-950 border border-cyan-500/30 text-cyan-400 flex items-center justify-center text-xs">
+              <i class="fa-solid fa-bolt-lightning"></i>
+            </div>
+          </div>
+          <div class="flex items-baseline gap-2">
+            <span id="valCurrent" class="text-3xl sm:text-4xl font-extrabold font-mono text-cyan-300 tracking-tight transition-colors">4.82</span>
+            <span class="text-xs font-mono text-slate-400">Amperes</span>
+          </div>
+          <div class="flex items-center justify-between text-xs font-mono text-slate-400 pt-1 border-t border-slate-800/80">
+            <span>SCT-013 Split Core</span>
+            <span id="valCurrentStatus" class="text-emerald-400 font-semibold">Nominal Load</span>
+          </div>
+        </div>
+
+        <!-- Metric 3: Active Power -->
+        <div class="bg-slate-900/70 backdrop-blur-md rounded-2xl border border-slate-800 p-5 space-y-3 hover:border-cyan-500/40 transition">
+          <div class="flex items-center justify-between text-slate-400">
+            <span class="text-xs font-mono font-semibold uppercase">Active Power (P<sub>kW</sub>)</span>
+            <div class="w-7 h-7 rounded-lg bg-teal-950 border border-teal-500/30 text-teal-400 flex items-center justify-center text-xs">
+              <i class="fa-solid fa-plug-circle-bolt"></i>
+            </div>
+          </div>
+          <div class="flex items-baseline gap-2">
+            <span id="valPower" class="text-3xl sm:text-4xl font-extrabold font-mono text-white tracking-tight">1.11</span>
+            <span class="text-xs font-mono text-slate-400">kW</span>
+          </div>
+          <div class="flex items-center justify-between text-xs font-mono text-slate-400 pt-1 border-t border-slate-800/80">
+            <span>Calculated P = V·I·cosφ</span>
+            <span id="valPowerStatus" class="text-teal-400">PF: 0.98</span>
+          </div>
+        </div>
+
+        <!-- Metric 4: Tamper Seal & Hardware Interlock -->
+        <div id="tamperCard" class="bg-slate-900/70 backdrop-blur-md rounded-2xl border border-slate-800 p-5 space-y-3 transition">
+          <div class="flex items-center justify-between text-slate-400">
+            <span class="text-xs font-mono font-semibold uppercase">Tamper Seal Integrity</span>
+            <div id="tamperIconWrap" class="w-7 h-7 rounded-lg bg-emerald-950 border border-emerald-500/30 text-emerald-400 flex items-center justify-center text-xs">
+              <i class="fa-solid fa-lock" id="tamperIcon"></i>
+            </div>
+          </div>
+          <div class="flex items-baseline gap-2">
+            <span id="valTamperStatus" class="text-xl sm:text-2xl font-extrabold font-mono text-emerald-400 tracking-tight">INTACT [SECURE]</span>
+          </div>
+          <div class="flex items-center justify-between text-xs font-mono text-slate-400 pt-1 border-t border-slate-800/80">
+            <span>Enclosure Opto-Switch</span>
+            <span id="valRelayStatus" class="text-emerald-400 font-semibold">Relay Closed</span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- SECONDARY TELEMETRY STRIP -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-900/50 p-3 rounded-xl border border-slate-800/70 text-xs font-mono">
+        <div class="flex items-center justify-between px-3 py-1.5 border-r border-slate-800">
+          <span class="text-slate-400">Grid Frequency:</span>
+          <span id="valFrequency" class="font-bold text-cyan-300">50.02 Hz</span>
+        </div>
+        <div class="flex items-center justify-between px-3 py-1.5 border-r border-slate-800">
+          <span class="text-slate-400">Phase Angle (cosφ):</span>
+          <span id="valPowerFactor" class="font-bold text-emerald-400">0.97 Lag</span>
+        </div>
+        <div class="flex items-center justify-between px-3 py-1.5 border-r border-slate-800">
+          <span class="text-slate-400">Node Junction Temp:</span>
+          <span id="valNodeTemp" class="font-bold text-slate-200">38.4 °C</span>
+        </div>
+        <div class="flex items-center justify-between px-3 py-1.5">
+          <span class="text-slate-400">Discrepancy Ratio:</span>
+          <span id="valLossRatio" class="font-bold text-emerald-400">0.2% [OK]</span>
+        </div>
+      </div>
+
+      <!-- LIVE DUAL-LINE CHART (CHART.JS) -->
+      <div class="bg-slate-900/80 backdrop-blur-md rounded-2xl border border-slate-800 p-5 sm:p-6 space-y-4">
+        
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h3 class="text-base font-bold text-white font-mono flex items-center gap-2">
+              <i class="fa-solid fa-chart-line text-cyan-400"></i>
+              Real-Time Dynamic Load Comparison: Feeder CT vs. Sum of Household Meters
+            </h3>
+            <p class="text-xs text-slate-400 font-mono">
+              Deviation &gt; 15% between expected curve and real-time sensor line indicates unmetered tap or meter shunt.
+            </p>
+          </div>
+
+          <div class="flex items-center gap-4 text-xs font-mono">
+            <div class="flex items-center gap-2">
+              <span class="w-3.5 h-0.5 bg-cyan-400 inline-block border-t border-dashed"></span>
+              <span class="text-cyan-300">Expected Load (Aggregated kWh)</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="w-3.5 h-1 bg-blue-500 rounded-full inline-block" id="actualLegendColor"></span>
+              <span class="text-blue-400" id="actualLegendText">Actual Feeder Draw (CT Sensor)</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Canvas Container -->
+        <div class="relative h-72 sm:h-80 w-full">
+          <canvas id="telemetryChart"></canvas>
+        </div>
+
+      </div>
+
+      <!-- INTERACTIVE DASHBOARD CONTROL BAR -->
+      <div class="bg-slate-900/90 backdrop-blur-md rounded-2xl border border-cyan-500/20 p-5 space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-3">
+          <div class="flex items-center gap-2 text-xs font-mono text-cyan-400 uppercase tracking-wider font-semibold">
+            <i class="fa-solid fa-sliders"></i>
+            Hardware Testbench & Simulation Injectors
+          </div>
+          <span class="text-[11px] font-mono text-slate-400">Use controls below to trigger physical fault vectors</span>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          
+          <!-- Control 1: Inject Tamper / Bypass -->
+          <button id="injectTheftBtn" class="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-white font-mono text-xs font-bold shadow-lg shadow-red-950/60 border border-red-500/40 transition hover:scale-[1.02] active:scale-95">
+            <i class="fa-solid fa-bolt-lightning text-amber-300"></i>
+            <span>Inject Line Tampering / Bypass</span>
+          </button>
+
+          <!-- Control 2: Reset to Baseline -->
+          <button id="resetBaselineBtn" class="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-300 font-mono text-xs font-bold border border-cyan-500/30 hover:border-cyan-400/60 transition hover:scale-[1.02] active:scale-95">
+            <i class="fa-solid fa-rotate-left"></i>
+            <span>Reset to Baseline (Nominal)</span>
+          </button>
+
+          <!-- Control 3: Trigger Relay Cut-Off -->
+          <button id="remoteCutoffBtn" class="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-slate-800 hover:bg-amber-950/50 text-amber-400 font-mono text-xs font-bold border border-amber-500/30 hover:border-amber-400/60 transition hover:scale-[1.02] active:scale-95">
+            <i class="fa-solid fa-power-off"></i>
+            <span id="cutoffBtnText">Remote Relay Trip (Isolate)</span>
+          </button>
+
+          <!-- Control 4: Export Incident Log -->
+          <button id="exportLogBtn" class="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-mono text-xs font-bold border border-slate-700 hover:border-slate-500 transition hover:scale-[1.02] active:scale-95">
+            <i class="fa-solid fa-download"></i>
+            <span>Export Incident Log (CSV/JSON)</span>
+          </button>
+
+        </div>
+
+        <!-- Custom Manual Slider for Dynamic Load Injection -->
+        <div class="pt-3 border-t border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div class="flex items-center gap-3">
+            <span class="text-xs font-mono text-slate-300">Variable Bypass Load Injection:</span>
+            <span id="sliderValueDisplay" class="text-xs font-mono font-bold text-cyan-400 bg-slate-950 px-2 py-1 rounded border border-cyan-500/30">0.0 A (Neutral)</span>
+          </div>
+          <div class="flex items-center gap-3 w-full sm:w-72">
+            <span class="text-[10px] font-mono text-slate-500">0A</span>
+            <input id="bypassSlider" type="range" min="0" max="20" step="0.5" value="0" class="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-400" />
+            <span class="text-[10px] font-mono text-slate-500">20A</span>
+          </div>
+        </div>
+
+      </div>
+
+    </section>
+
+    <!-- 4. INTERACTIVE GRID TOPOLOGY & FEEDER NETWORK MAP -->
+    <section id="topology" class="space-y-6">
+      
+      <div class="border-b border-slate-800 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div>
+          <span class="text-xs font-mono text-cyan-400 uppercase tracking-widest">// Substation Distribution Topology</span>
+          <h2 class="text-2xl sm:text-3xl font-extrabold text-white">Interactive Feeder Grid Map</h2>
+        </div>
+        <div class="text-xs font-mono text-slate-400">
+          Click any Node or Meter below to inspect micro-telemetry
+        </div>
+      </div>
+
+      <!-- SVG Topology Container -->
+      <div class="bg-slate-950/80 backdrop-blur-md rounded-2xl border border-cyan-500/20 p-5 sm:p-6 relative overflow-hidden">
+        
+        <div class="flex items-center justify-between text-xs font-mono mb-4 text-slate-400">
+          <span>DISTRIBUTION FEEDER LINE: 11kV / 415V STEP-DOWN (SECTOR 7-B)</span>
+          <div class="flex items-center gap-4">
+            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-cyan-400 inline-block"></span> Normal Feeder</span>
+            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-400 inline-block"></span> Secure Meter</span>
+            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-red-500 inline-block animate-ping"></span> Tampered Hook</span>
+          </div>
+        </div>
+
+        <!-- SVG Topology Visualization -->
+        <div class="w-full overflow-x-auto">
+          <svg id="gridTopologySvg" viewBox="0 0 950 360" class="w-full min-w-[700px] h-auto select-none">
+            <defs>
+              <linearGradient id="cyanLineGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="#00F0FF" />
+                <stop offset="100%" stop-color="#3B82F6" />
+              </linearGradient>
+              <linearGradient id="alertLineGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="#EF4444" />
+                <stop offset="100%" stop-color="#DC2626" />
+              </linearGradient>
+              <filter id="glowFilter" x="-20%" y="-20%" width="140%" height="140%">
+                <feGaussianBlur stdDeviation="3" result="blur" />
+                <feComposite in="SourceGraphic" in2="blur" operator="over" />
+              </filter>
+            </defs>
+
+            <!-- Grid backdrop lines -->
+            <line x1="50" y1="180" x2="890" y2="180" stroke="#1E293B" stroke-width="12" stroke-linecap="round" />
+
+            <!-- Dynamic Feeder Power Line (Animated current flow) -->
+            <line id="feederWireMain" x1="120" y1="180" x2="520" y2="180" stroke="#00F0FF" stroke-width="4" class="cable-flow" filter="url(#glowFilter)" />
+            <line id="feederWireTail" x1="520" y1="180" x2="840" y2="180" stroke="#00F0FF" stroke-width="4" class="cable-flow" filter="url(#glowFilter)" />
+
+            <!-- Illegal Tap Branch Wire (Hidden by default, shown upon theft injection) -->
+            <path id="theftHookLine" d="M 450 180 L 450 85 L 530 85" fill="none" stroke="#EF4444" stroke-width="3" stroke-dasharray="4,4" class="hidden cable-flow-alert" filter="url(#glowFilter)" />
+            
+            <!-- Illegal Tap Load Representation -->
+            <g id="theftHookBadge" class="hidden cursor-pointer">
+              <rect x="530" y="65" width="130" height="40" rx="8" fill="#450a0a" stroke="#ef4444" stroke-width="1.5" />
+              <text x="595" y="84" fill="#fca5a5" font-size="10" font-family="monospace" text-anchor="middle" font-weight="bold">⚠️ ILLEGAL TAP</text>
+              <text x="595" y="97" fill="#f87171" font-size="9" font-family="monospace" text-anchor="middle">+11.6 A UNMETERED</text>
+            </g>
+
+            <!-- Drop lines to Smart Meters -->
+            <!-- Meter 1 -->
+            <line x1="280" y1="180" x2="280" y2="280" stroke="#06B6D4" stroke-width="2" stroke-dasharray="3,3" />
+            <!-- Meter 2 (Node 01 monitored) -->
+            <line x1="450" y1="180" x2="450" y2="280" stroke="#06B6D4" stroke-width="2" stroke-dasharray="3,3" id="wireNode1" />
+            <!-- Meter 3 -->
+            <line x1="620" y1="180" x2="620" y2="280" stroke="#06B6D4" stroke-width="2" stroke-dasharray="3,3" />
+            <!-- Meter 4 -->
+            <line x1="770" y1="180" x2="770" y2="280" stroke="#06B6D4" stroke-width="2" stroke-dasharray="3,3" />
+
+            <!-- SUBSTATION TX-04B NODE -->
+            <g class="cursor-pointer" onclick="inspectNode('substation')">
+              <rect x="50" y="140" width="80" height="80" rx="14" fill="#091428" stroke="#00F0FF" stroke-width="2" filter="url(#glowFilter)" />
+              <text x="90" y="175" fill="#00F0FF" font-size="11" font-family="monospace" font-weight="bold" text-anchor="middle">SUB-04B</text>
+              <text x="90" y="195" fill="#94A3B8" font-size="9" font-family="monospace" text-anchor="middle">11kV/415V</text>
+              <circle cx="90" cy="140" r="5" fill="#00F0FF" />
+            </g>
+
+            <!-- PRIMARY ESP32 SENSOR HUB (NODE 01) ON FEEDER -->
+            <g id="hubNode01" class="cursor-pointer" onclick="inspectNode('esp32_hub')">
+              <circle cx="450" cy="180" r="22" fill="#091428" stroke="#00F0FF" stroke-width="2.5" id="hubCircle" filter="url(#glowFilter)" />
+              <circle cx="450" cy="180" r="7" fill="#00F0FF" id="hubInnerCircle" />
+              <text x="450" y="150" fill="#38BDF8" font-size="10" font-family="monospace" font-weight="bold" text-anchor="middle" id="hubLabel">ESP32 SENSOR NODE 01</text>
+            </g>
+
+            <!-- DOWNSTREAM SMART METERS (HOUSEHOLDS) -->
+            <!-- Meter 1 -->
+            <g class="cursor-pointer" onclick="inspectNode('meter_01')">
+              <rect x="240" y="275" width="80" height="55" rx="8" fill="#091428" stroke="#10B981" stroke-width="1.5" />
+              <text x="280" y="295" fill="#A7F3D0" font-size="10" font-family="monospace" font-weight="bold" text-anchor="middle">MTR-101</text>
+              <text x="280" y="315" fill="#6EE7B7" font-size="9" font-family="monospace" text-anchor="middle">1.2 kW [OK]</text>
+            </g>
+
+            <!-- Meter 2 (Node 01 consumer) -->
+            <g id="meter02Node" class="cursor-pointer" onclick="inspectNode('meter_02')">
+              <rect id="meter02Rect" x="410" y="275" width="80" height="55" rx="8" fill="#091428" stroke="#10B981" stroke-width="1.5" />
+              <text id="meter02Title" x="450" y="295" fill="#A7F3D0" font-size="10" font-family="monospace" font-weight="bold" text-anchor="middle">MTR-102</text>
+              <text id="meter02Sub" x="450" y="315" fill="#6EE7B7" font-size="9" font-family="monospace" text-anchor="middle">1.1 kW [OK]</text>
+            </g>
+
+            <!-- Meter 3 -->
+            <g class="cursor-pointer" onclick="inspectNode('meter_03')">
+              <rect x="580" y="275" width="80" height="55" rx="8" fill="#091428" stroke="#10B981" stroke-width="1.5" />
+              <text x="620" y="295" fill="#A7F3D0" font-size="10" font-family="monospace" font-weight="bold" text-anchor="middle">MTR-103</text>
+              <text x="620" y="315" fill="#6EE7B7" font-size="9" font-family="monospace" text-anchor="middle">0.8 kW [OK]</text>
+            </g>
+
+            <!-- Meter 4 -->
+            <g class="cursor-pointer" onclick="inspectNode('meter_04')">
+              <rect x="730" y="275" width="80" height="55" rx="8" fill="#091428" stroke="#10B981" stroke-width="1.5" />
+              <text x="770" y="295" fill="#A7F3D0" font-size="10" font-family="monospace" font-weight="bold" text-anchor="middle">MTR-104</text>
+              <text x="770" y="315" fill="#6EE7B7" font-size="9" font-family="monospace" text-anchor="middle">1.7 kW [OK]</text>
+            </g>
+
+          </svg>
+        </div>
+
+        <!-- Node Details Drawer / Micro-Inspector (Dynamic upon clicking any node) -->
+        <div id="nodeDetailBox" class="mt-4 p-4 rounded-xl bg-slate-900/90 border border-slate-800 text-xs font-mono flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-lg bg-cyan-950 border border-cyan-500/30 text-cyan-400 flex items-center justify-center">
+              <i class="fa-solid fa-microchip"></i>
+            </div>
+            <div>
+              <span id="detailNodeName" class="font-bold text-white text-sm">ESP32 Monitoring Hub (Node 01)</span>
+              <p id="detailNodeCoords" class="text-slate-400">GPS: 18.5204° N, 73.8567° E · Pole #PL-89 · Feed Loop 4B</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-4">
+            <div>
+              <span class="text-slate-400 block text-[10px]">RMS FEEDER CURRENT</span>
+              <span id="detailCurrent" class="text-cyan-400 font-bold text-sm">4.82 A</span>
+            </div>
+            <div>
+              <span class="text-slate-400 block text-[10px]">LOCAL TAMPER SENSOR</span>
+              <span id="detailTamper" class="text-emerald-400 font-bold text-sm">SEALED (HIGH)</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </section>
+
+    <!-- 5. GRID PATROL & ANPR INSPECTION VEHICLE TRACKER -->
+    <section id="anpr" class="space-y-6">
+      
+      <div class="border-b border-slate-800 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div>
+          <span class="text-xs font-mono text-cyan-400 uppercase tracking-widest">// Enforcement & Field Ops Interdiction</span>
+          <h2 class="text-2xl sm:text-3xl font-extrabold text-white">Utility Patrol Trajectory & ANPR Logging</h2>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="text-xs font-mono px-3 py-1 rounded bg-slate-900 border border-slate-800 text-slate-300">
+            Field Unit: <span class="text-cyan-400 font-bold">PATROL-VAN-03</span>
+          </span>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- Trajectory Map Simulation (2 cols) -->
+        <div class="lg:col-span-2 bg-slate-900/80 backdrop-blur-md rounded-2xl border border-slate-800 p-5 space-y-4">
+          <div class="flex items-center justify-between text-xs font-mono">
+            <span class="text-slate-300 font-semibold flex items-center gap-2">
+              <i class="fa-solid fa-location-crosshairs text-cyan-400"></i>
+              Real-Time Route Tracking: Central Depot &rarr; Pole PL-89 (Node 01)
+            </span>
+            <span id="patrolStatusText" class="text-emerald-400 font-bold">ON STANDBY [DEPOT]</span>
+          </div>
+
+          <!-- Radar/Map Canvas View -->
+          <div class="relative h-64 rounded-xl bg-slate-950 border border-cyan-500/20 overflow-hidden flex items-center justify-center">
+            
+            <!-- Radial Radar Background Grid -->
+            <div class="absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(6,182,212,0.08)_0%,_transparent_70%)]"></div>
+            <div class="absolute inset-0" style="background-image: linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px); background-size: 24px 24px;"></div>
+
+            <!-- Route Track SVG -->
+            <svg class="absolute inset-0 w-full h-full" viewBox="0 0 500 240">
+              <!-- Waypoint Path -->
+              <path d="M 50 190 Q 180 180, 240 120 T 420 60" fill="none" stroke="#1E293B" stroke-width="6" stroke-linecap="round" />
+              <path id="activeRoutePath" d="M 50 190 Q 180 180, 240 120 T 420 60" fill="none" stroke="#00F0FF" stroke-width="2.5" stroke-dasharray="4,4" class="cable-flow" />
+              
+              <!-- Depot Marker -->
+              <g>
+                <circle cx="50" cy="190" r="8" fill="#0284C7" />
+                <text x="50" y="215" fill="#94A3B8" font-size="9" font-family="monospace" text-anchor="middle">Central Depot</text>
+              </g>
+
+              <!-- Node 01 / Target Pole -->
+              <g>
+                <circle cx="420" cy="60" r="10" fill="#091428" stroke="#EF4444" stroke-width="2" id="targetPoleCircle" />
+                <circle cx="420" cy="60" r="4" fill="#EF4444" />
+                <text x="420" y="40" fill="#F87171" font-size="9" font-family="monospace" text-anchor="middle" font-weight="bold">TARGET: POLE #PL-89</text>
+              </g>
+
+              <!-- Moving Patrol Vehicle Marker -->
+              <g id="patrolVehicleGroup" transform="translate(50, 190)">
+                <circle cx="0" cy="0" r="12" fill="#0284C7" opacity="0.3" class="animate-ping" id="patrolPing" />
+                <circle cx="0" cy="0" r="8" fill="#00F0FF" stroke="#FFFFFF" stroke-width="1.5" />
+                <text x="0" y="-12" fill="#38BDF8" font-size="9" font-family="monospace" text-anchor="middle" font-weight="bold">PATROL-03</text>
+              </g>
+            </svg>
+
+            <!-- Overlay Stats -->
+            <div class="absolute bottom-3 left-3 bg-slate-900/90 border border-slate-800 px-3 py-1.5 rounded-lg text-[11px] font-mono flex items-center gap-3">
+              <div>ETA to Site: <span id="patrolEtaText" class="text-cyan-400 font-bold">-- min</span></div>
+              <div class="border-l border-slate-700 pl-3">Velocity: <span id="patrolSpeedText" class="text-slate-200 font-bold">0 km/h</span></div>
+            </div>
+
+          </div>
+
+          <div class="flex items-center justify-between text-xs font-mono text-slate-400">
+            <span>Automated Dispatch Protocol: Level 3 Anomaly</span>
+            <button id="dispatchPatrolBtn" class="px-3 py-1.5 rounded bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold font-mono transition">
+              Dispatch Squad Manually
+            </button>
+          </div>
+        </div>
+
+        <!-- ANPR (Automatic Number Plate Recognition) Card (1 col) -->
+        <div class="bg-slate-900/80 backdrop-blur-md rounded-2xl border border-slate-800 p-5 space-y-4 flex flex-col justify-between">
+          <div class="space-y-3">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+              <span class="text-xs font-mono text-slate-300 font-semibold flex items-center gap-2">
+                <i class="fa-solid fa-camera text-cyan-400"></i>
+                ANPR Camera Log
+              </span>
+              <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-500/30">CAM-04 ONLINE</span>
+            </div>
+
+            <!-- Simulated License Plate Card -->
+            <div class="bg-slate-950 p-3.5 rounded-xl border border-cyan-500/30 space-y-2 text-center">
+              <span class="text-[10px] text-slate-400 font-mono block">RECOGNIZED FIELD VEHICLE PLATE</span>
+              
+              <!-- Yellow Ind License Plate Graphic -->
+              <div class="bg-amber-400 text-slate-950 font-mono font-extrabold text-lg px-4 py-2 rounded-md tracking-widest inline-flex items-center gap-2 border-2 border-slate-900 shadow-md">
+                <span class="text-[10px] bg-slate-900 text-white px-1 py-0.5 rounded font-sans">IND</span>
+                <span id="anprPlateNumber">KA 05 EV 4412</span>
+              </div>
+              
+              <div class="text-[11px] font-mono text-slate-400 pt-1">
+                Vehicle: <strong>Tata Nexon EV (Utility Patrol)</strong>
+              </div>
+            </div>
+
+            <!-- Officer Details -->
+            <div class="space-y-1.5 text-xs font-mono text-slate-300 bg-slate-950/60 p-3 rounded-xl border border-slate-800">
+              <div class="flex justify-between">
+                <span class="text-slate-400">Enforcement Officer:</span>
+                <span class="text-white font-semibold">Insp. R. Sharma</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-slate-400">Badge ID:</span>
+                <span class="text-cyan-400">#PWR-SEC-882</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-slate-400">Dispatch Auth:</span>
+                <span class="text-emerald-400">Verified SIH-API</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="text-[11px] font-mono text-slate-400 bg-slate-900 p-2.5 rounded-lg border border-slate-800">
+            <i class="fa-solid fa-circle-info text-cyan-400 mr-1"></i>
+            Live vehicle speed and GPS telemetry synchronized over encrypted MQTT broker.
+          </div>
+        </div>
+
+      </div>
+
+    </section>
+
+    <!-- 6. TECHNICAL PIPELINE & HARDWARE ARCHITECTURE -->
+    <section id="architecture" class="space-y-6">
+      
+      <div class="text-center max-w-2xl mx-auto space-y-2">
+        <span class="text-xs font-mono text-cyan-400 uppercase tracking-widest">// End-to-End System Pipeline</span>
+        <h2 class="text-2xl sm:text-3xl font-extrabold text-white">4-Stage Hardware & Anomaly Engine</h2>
+        <p class="text-xs sm:text-sm text-slate-400">From micro-second analog line sampling to cloud-assisted enforcement ticketing.</p>
+      </div>
+
+      <!-- 4 Pipeline Step Cards -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        
+        <!-- Step 1 -->
+        <div class="bg-slate-900/70 backdrop-blur-md rounded-2xl border border-slate-800 p-5 space-y-3 relative group hover:border-cyan-500/50 transition">
+          <div class="text-cyan-400 font-mono text-xs font-bold">01 // SENSING LAYER</div>
+          <div class="w-10 h-10 rounded-xl bg-cyan-950/80 border border-cyan-500/30 text-cyan-400 flex items-center justify-center text-lg">
+            <i class="fa-solid fa-wave-square"></i>
+          </div>
+          <h3 class="text-base font-bold text-white font-mono">Data Acquisition</h3>
+          <p class="text-xs text-slate-400 leading-relaxed">
+            Non-invasive SCT-013 current transformer (100A:50mA) and ZMPT101B voltage transformer sample line AC signals at 50Hz with 12-bit ADC fidelity.
+          </p>
+          <div class="pt-2 text-[11px] font-mono text-cyan-300">
+            ADC: GPIO 34, 35
+          </div>
+        </div>
+
+        <!-- Step 2 -->
+        <div class="bg-slate-900/70 backdrop-blur-md rounded-2xl border border-slate-800 p-5 space-y-3 relative group hover:border-cyan-500/50 transition">
+          <div class="text-cyan-400 font-mono text-xs font-bold">02 // EMBEDDED COMPUTE</div>
+          <div class="w-10 h-10 rounded-xl bg-cyan-950/80 border border-cyan-500/30 text-cyan-400 flex items-center justify-center text-lg">
+            <i class="fa-solid fa-microchip"></i>
+          </div>
+          <h3 class="text-base font-bold text-white font-mono">ESP32 Edge Processing</h3>
+          <p class="text-xs text-slate-400 leading-relaxed">
+            Dual-core Xtensa 240MHz executes FreeRTOS task calculating True RMS Voltage, RMS Current, Apparent Power, Active Power, and Cosφ power factor.
+          </p>
+          <div class="pt-2 text-[11px] font-mono text-cyan-300">
+            FreeRTOS 10ms Task Sched
+          </div>
+        </div>
+
+        <!-- Step 3 -->
+        <div class="bg-slate-900/70 backdrop-blur-md rounded-2xl border border-slate-800 p-5 space-y-3 relative group hover:border-cyan-500/50 transition">
+          <div class="text-cyan-400 font-mono text-xs font-bold">03 // INFERENCE ENGINE</div>
+          <div class="w-10 h-10 rounded-xl bg-cyan-950/80 border border-cyan-500/30 text-cyan-400 flex items-center justify-center text-lg">
+            <i class="fa-solid fa-brain"></i>
+          </div>
+          <h3 class="text-base font-bold text-white font-mono">Deviation & Anomaly Logic</h3>
+          <p class="text-xs text-slate-400 leading-relaxed">
+            Mathematical conservation check compares Feeder Line Current with aggregate smart meter sum. Flags delta thresholds &gt; 15% or optical seal triggers.
+          </p>
+          <div class="pt-2 text-[11px] font-mono text-cyan-300">
+            Delta Residual: ΔI &gt; 1.5A
+          </div>
+        </div>
+
+        <!-- Step 4 -->
+        <div class="bg-slate-900/70 backdrop-blur-md rounded-2xl border border-slate-800 p-5 space-y-3 relative group hover:border-cyan-500/50 transition">
+          <div class="text-cyan-400 font-mono text-xs font-bold">04 // CLOUD & INTERDICTION</div>
+          <div class="w-10 h-10 rounded-xl bg-cyan-950/80 border border-cyan-500/30 text-cyan-400 flex items-center justify-center text-lg">
+            <i class="fa-solid fa-tower-broadcast"></i>
+          </div>
+          <h3 class="text-base font-bold text-white font-mono">Telemetry & Dispatch</h3>
+          <p class="text-xs text-slate-400 leading-relaxed">
+            Dispatches encrypted telemetry payloads via WebSocket / MQTT to Central SCADA, triggers relay trip interlock, and dispatches patrol unit.
+          </p>
+          <div class="pt-2 text-[11px] font-mono text-cyan-300">
+            MQTT Broker / WebSockets
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Tech Stack Badges Strip -->
+      <div class="p-4 rounded-xl bg-slate-900/50 border border-slate-800 flex flex-wrap items-center justify-center gap-3 font-mono text-xs">
+        <span class="text-slate-400 font-semibold mr-2">TECH STACK:</span>
+        <span class="px-3 py-1 rounded-md bg-slate-800 text-cyan-300 border border-cyan-500/30">ESP32-WROOM</span>
+        <span class="px-3 py-1 rounded-md bg-slate-800 text-cyan-300 border border-cyan-500/30">Arduino C++ / FreeRTOS</span>
+        <span class="px-3 py-1 rounded-md bg-slate-800 text-cyan-300 border border-cyan-500/30">ZMPT101B + SCT-013</span>
+        <span class="px-3 py-1 rounded-md bg-slate-800 text-cyan-300 border border-cyan-500/30">MQTT / WebSockets</span>
+        <span class="px-3 py-1 rounded-md bg-slate-800 text-cyan-300 border border-cyan-500/30">Chart.js Realtime</span>
+        <span class="px-3 py-1 rounded-md bg-slate-800 text-cyan-300 border border-cyan-500/30">Tailwind CSS</span>
+      </div>
+
+    </section>
+
+    <!-- 7. LIVE ESP32 UART SERIAL CONSOLE (TERMINAL) -->
+    <section class="space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div class="flex items-center gap-2">
+          <div class="w-3 h-3 rounded-full bg-red-500/80"></div>
+          <div class="w-3 h-3 rounded-full bg-amber-500/80"></div>
+          <div class="w-3 h-3 rounded-full bg-emerald-500/80"></div>
+          <span class="text-xs font-mono text-slate-300 font-bold ml-2">ESP32 UART0 SERIAL TERMINAL (115200 BAUD)</span>
+        </div>
+        <div class="flex items-center gap-3 text-xs font-mono">
+          <button id="clearTerminalBtn" class="text-slate-400 hover:text-cyan-400 transition">
+            <i class="fa-solid fa-eraser"></i> Clear
+          </button>
+          <span class="text-emerald-400 flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span> STREAM ACTIVE
+          </span>
+        </div>
+      </div>
+
+      <div id="serialTerminal" class="h-48 bg-slate-950 border border-slate-800 rounded-xl p-4 font-mono text-xs text-slate-300 overflow-y-auto terminal-scroll space-y-1 select-text">
+        <!-- Live log items injected here via JS -->
+      </div>
+    </section>
+
+    <!-- 8. IMPACT METRICS & FUTURE ROADMAP -->
+    <section id="impact" class="space-y-12">
+      
+      <!-- 4 Impact Metric Counters -->
+      <div>
+        <div class="text-center max-w-xl mx-auto space-y-2 mb-8">
+          <span class="text-xs font-mono text-cyan-400 uppercase tracking-widest">// Quantitative Outcomes</span>
+          <h2 class="text-2xl sm:text-3xl font-extrabold text-white">Projected Hackathon Impact</h2>
+        </div>
+
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          
+          <div class="bg-slate-900/60 rounded-2xl border border-slate-800 p-5 text-center space-y-2">
+            <div class="text-3xl sm:text-4xl font-extrabold font-mono text-cyan-400">98.4%</div>
+            <div class="text-xs text-slate-300 font-bold">Faster Theft Detection</div>
+            <div class="text-[11px] text-slate-500 font-mono">From 45 days down to &lt; 1 sec</div>
+          </div>
+
+          <div class="bg-slate-900/60 rounded-2xl border border-slate-800 p-5 text-center space-y-2">
+            <div class="text-3xl sm:text-4xl font-extrabold font-mono text-emerald-400">75%</div>
+            <div class="text-xs text-slate-300 font-bold">Lower Manual Inspection Cost</div>
+            <div class="text-[11px] text-slate-500 font-mono">Automated patrol dispatch</div>
+          </div>
+
+          <div class="bg-slate-900/60 rounded-2xl border border-slate-800 p-5 text-center space-y-2">
+            <div class="text-3xl sm:text-4xl font-extrabold font-mono text-teal-300">$1.4M</div>
+            <div class="text-xs text-slate-300 font-bold">Annual Loss Prevention / Substation</div>
+            <div class="text-[11px] text-slate-500 font-mono">Per 10,000 consumer connections</div>
+          </div>
+
+          <div class="bg-slate-900/60 rounded-2xl border border-slate-800 p-5 text-center space-y-2">
+            <div class="text-3xl sm:text-4xl font-extrabold font-mono text-blue-400">100%</div>
+            <div class="text-xs text-slate-300 font-bold">Tamper Evidence Audit Trail</div>
+            <div class="text-[11px] text-slate-500 font-mono">Immutable cryptographic logs</div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Roadmap Bento -->
+      <div class="bg-slate-900/70 backdrop-blur-md rounded-2xl border border-slate-800 p-6 sm:p-8 space-y-6">
+        <div class="border-b border-slate-800 pb-3">
+          <span class="text-xs font-mono text-cyan-400 uppercase tracking-widest">// Scalability Horizon</span>
+          <h3 class="text-xl font-bold text-white font-mono">Smart India Hackathon 2026 Future Roadmap</h3>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-xs font-mono">
+          <div class="space-y-2 border-l-2 border-cyan-500/50 pl-4">
+            <span class="text-cyan-400 font-bold">PHASE 01: EDGE SENSOR CLUSTER</span>
+            <p class="text-slate-400 leading-relaxed">
+              Scale ESP32 hardware to 500+ feeder transformers with cellular NB-IoT / LoRaWAN mesh communication in rural terrains without broadband.
+            </p>
+          </div>
+
+          <div class="space-y-2 border-l-2 border-blue-500/50 pl-4">
+            <span class="text-blue-400 font-bold">PHASE 02: AI LOAD CURVE AUTOENCODER</span>
+            <p class="text-slate-400 leading-relaxed">
+              Deploy lightweight TinyML LSTM models on ESP32-S3 to learn seasonal household diurnal profiles and spot subtle slow-creep power drains.
+            </p>
+          </div>
+
+          <div class="space-y-2 border-l-2 border-emerald-500/50 pl-4">
+            <span class="text-emerald-400 font-bold">PHASE 03: UTILITY SCADA &amp; SMART DISCONNECT</span>
+            <p class="text-slate-400 leading-relaxed">
+              Direct API integration with state power boards (DISCOMs) for automated FIR generation, remote latching relay shutoff, and drone inspection dispatch.
+            </p>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- HACKATHON FOOTER -->
+  <footer class="border-t border-slate-800 bg-slate-950/90 py-8 text-center text-xs font-mono text-slate-400 space-y-2">
+    <div class="flex items-center justify-center gap-2 text-white font-bold">
+      <i class="fa-solid fa-bolt-lightning text-cyan-400"></i>
+      <span>VOLTGUARD // SIH-2026 TEAM PROTOTYPE</span>
+    </div>
+    <p>Department of Electrical Engineering &amp; Computer Science · Smart India Hackathon 2026</p>
+    <p class="text-slate-500 text-[11px]">Hardware Tested with ESP32-WROOM-32D, SCT-013-000, and ZMPT101B Sensors</p>
+  </footer>
+
+  <!-- SELF-CONTAINED VANILLA JAVASCRIPT -->
+  <script>
+    /* ============================================================
+       VOLTGUARD - REAL-TIME IOT TELEMETRY & THEFT DETECTION ENGINE
+       ============================================================ */
+
+    // Core System State
+    const state = {
+      isTheftActive: false,
+      isRelayCutoff: false,
+      sliderBypassCurrent: 0,
+      audioSynthEnabled: true,
+      
+      // Baseline nominal values
+      baseline: {
+        voltage: 230.8,
+        expectedLoad: 4.80, // Amperes
+        powerFactor: 0.97,
+        temp: 38.4,
+        frequency: 50.02
+      },
+
+      // Dynamic telemetry
+      telemetry: {
+        voltage: 230.8,
+        feederCurrent: 4.82,
+        expectedCurrent: 4.80,
+        activePower: 1.11, // kW
+        powerFactor: 0.97,
+        temp: 38.4,
+        frequency: 50.02,
+        lossRatio: 0.2
+      },
+
+      // Inspection Patrol Vehicle State
+      patrol: {
+        status: 'STANDBY', // STANDBY, DISPATCHED, ON_SITE
+        progress: 0, // 0 to 100%
+        speed: 0,
+        eta: 0,
+        plate: 'KA 05 EV 4412'
+      }
+    };
+
+    // DOM Elements
+    const navStatusBadge = document.getElementById('navStatusBadge');
+    const navStatusPing = document.getElementById('navStatusPing');
+    const navStatusDot = document.getElementById('navStatusDot');
+    const navStatusText = document.getElementById('navStatusText');
+    const navSimulateBtn = document.getElementById('navSimulateBtn');
+    const navSimulateText = document.getElementById('navSimulateText');
+
+    const dynamicAlertBanner = document.getElementById('dynamicAlertBanner');
+    const bannerHeadline = document.getElementById('bannerHeadline');
+    const bannerSubtext = document.getElementById('bannerSubtext');
+    const bannerIcon = document.getElementById('bannerIcon');
+    const bannerIconWrapper = document.getElementById('bannerIconWrapper');
+    const bannerTimestamp = document.getElementById('bannerTimestamp');
+
+    const valVoltage = document.getElementById('valVoltage');
+    const valCurrent = document.getElementById('valCurrent');
+    const valCurrentStatus = document.getElementById('valCurrentStatus');
+    const currentCard = document.getElementById('currentCard');
+    const currentIconWrap = document.getElementById('currentIconWrap');
+
+    const valPower = document.getElementById('valPower');
+    const valPowerStatus = document.getElementById('valPowerStatus');
+    const valTamperStatus = document.getElementById('valTamperStatus');
+    const valRelayStatus = document.getElementById('valRelayStatus');
+    const tamperCard = document.getElementById('tamperCard');
+    const tamperIconWrap = document.getElementById('tamperIconWrap');
+    const tamperIcon = document.getElementById('tamperIcon');
+
+    const valFrequency = document.getElementById('valFrequency');
+    const valPowerFactor = document.getElementById('valPowerFactor');
+    const valNodeTemp = document.getElementById('valNodeTemp');
+    const valLossRatio = document.getElementById('valLossRatio');
+
+    const injectTheftBtn = document.getElementById('injectTheftBtn');
+    const resetBaselineBtn = document.getElementById('resetBaselineBtn');
+    const remoteCutoffBtn = document.getElementById('remoteCutoffBtn');
+    const cutoffBtnText = document.getElementById('cutoffBtnText');
+    const exportLogBtn = document.getElementById('exportLogBtn');
+    const bypassSlider = document.getElementById('bypassSlider');
+    const sliderValueDisplay = document.getElementById('sliderValueDisplay');
+    const audioToggleBtn = document.getElementById('audioToggleBtn');
+    const audioIcon = document.getElementById('audioIcon');
+    const audioLabel = document.getElementById('audioLabel');
+
+    const serialTerminal = document.getElementById('serialTerminal');
+    const clearTerminalBtn = document.getElementById('clearTerminalBtn');
+
+    // SVG Topology Elements
+    const theftHookLine = document.getElementById('theftHookLine');
+    const theftHookBadge = document.getElementById('theftHookBadge');
+    const hubCircle = document.getElementById('hubCircle');
+    const hubInnerCircle = document.getElementById('hubInnerCircle');
+    const hubLabel = document.getElementById('hubLabel');
+    const feederWireMain = document.getElementById('feederWireMain');
+
+    // Patrol Elements
+    const patrolStatusText = document.getElementById('patrolStatusText');
+    const patrolEtaText = document.getElementById('patrolEtaText');
+    const patrolSpeedText = document.getElementById('patrolSpeedText');
+    const patrolVehicleGroup = document.getElementById('patrolVehicleGroup');
+    const dispatchPatrolBtn = document.getElementById('dispatchPatrolBtn');
+
+    // Web Audio API Synthesizer for Alert Beep
+    let audioCtx = null;
+    function playAlertChirp(isUrgent = false) {
+      if (!state.audioSynthEnabled) return;
+      try {
+        if (!audioCtx) {
+          audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtx.state === 'suspended') {
+          audioCtx.resume();
+        }
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        const now = audioCtx.currentTime;
+        if (isUrgent) {
+          // Warning two-tone siren
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(880, now);
+          osc.frequency.exponentialRampToValueAtTime(440, now + 0.25);
+          gain.gain.setValueAtTime(0.12, now);
+          gain.gain.exponentialRampToValueAtTime(0.01, now + 0.28);
+          osc.start(now);
+          osc.stop(now + 0.3);
+        } else {
+          // Gentle confirmation beep
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(520, now);
+          osc.frequency.exponentialRampToValueAtTime(660, now + 0.12);
+          gain.gain.setValueAtTime(0.08, now);
+          gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+          osc.start(now);
+          osc.stop(now + 0.16);
+        }
+      } catch (e) {
+        // Audio policy ignore
+      }
+    }
+
+    // Modern Toast Notification Utility
+    function showToast(title, message, type = 'info') {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      toast.className = `p-4 rounded-xl border font-mono text-xs shadow-2xl backdrop-blur-md pointer-events-auto transform transition-all duration-300 translate-x-10 opacity-0 flex items-start gap-3 ${
+        type === 'error'
+          ? 'bg-red-950/90 border-red-500/50 text-red-200'
+          : type === 'warning'
+          ? 'bg-amber-950/90 border-amber-500/50 text-amber-200'
+          : 'bg-slate-900/90 border-cyan-500/50 text-cyan-200'
+      }`;
+
+      const iconClass = type === 'error' 
+        ? 'fa-solid fa-triangle-exclamation text-red-400' 
+        : type === 'warning' 
+        ? 'fa-solid fa-bell text-amber-400' 
+        : 'fa-solid fa-circle-check text-cyan-400';
+
+      toast.innerHTML = `
+        <i class="${iconClass} text-base mt-0.5"></i>
+        <div class="flex-1">
+          <div class="font-bold text-white">${title}</div>
+          <div class="text-[11px] opacity-90 mt-0.5">${message}</div>
+        </div>
+        <button class="text-slate-400 hover:text-white transition ml-1" onclick="this.parentElement.remove()">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      `;
+
+      container.appendChild(toast);
+      requestAnimationFrame(() => {
+        toast.classList.remove('translate-x-10', 'opacity-0');
+      });
+
+      setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-x-10');
+        setTimeout(() => toast.remove(), 400);
+      }, 5000);
+    }
+
+    // Terminal Logging Utility
+    function logToTerminal(msg, type = 'info') {
+      const timeStr = new Date().toTimeString().split(' ')[0];
+      const line = document.createElement('div');
+      line.className = 'leading-relaxed break-all';
+
+      if (type === 'alert') {
+        line.innerHTML = `<span class="text-red-400 font-bold">[${timeStr}] [ALERT_0x8F]</span> <span class="text-rose-300">${msg}</span>`;
+      } else if (type === 'warn') {
+        line.innerHTML = `<span class="text-amber-400">[${timeStr}] [WARN]</span> <span class="text-amber-200">${msg}</span>`;
+      } else if (type === 'cmd') {
+        line.innerHTML = `<span class="text-cyan-400">[${timeStr}] [CMD]</span> <span class="text-cyan-200">${msg}</span>`;
+      } else {
+        line.innerHTML = `<span class="text-slate-500">[${timeStr}]</span> <span class="text-slate-400">${msg}</span>`;
+      }
+
+      serialTerminal.appendChild(line);
+      serialTerminal.scrollTop = serialTerminal.scrollHeight;
+    }
+
+    // Initialize Chart.js Dual-Line Chart
+    const ctx = document.getElementById('telemetryChart').getContext('2d');
+    
+    // Initial 12 baseline data points (18 seconds history)
+    const initialLabels = [];
+    const initialExpectedData = [];
+    const initialActualData = [];
+    const nowTime = new Date();
+
+    for (let i = 12; i >= 0; i--) {
+      const t = new Date(nowTime.getTime() - i * 1500);
+      initialLabels.push(t.toLocaleTimeString());
+      initialExpectedData.push(4.75 + (Math.sin(i) * 0.15));
+      initialActualData.push(4.78 + (Math.sin(i) * 0.18));
+    }
+
+    const telemetryChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: initialLabels,
+        datasets: [
+          {
+            label: 'Expected Load (Aggregated kWh)',
+            data: initialExpectedData,
+            borderColor: '#00F0FF',
+            borderWidth: 2,
+            borderDash: [5, 5],
+            backgroundColor: 'transparent',
+            pointRadius: 0,
+            tension: 0.35,
+          },
+          {
+            label: 'Actual Feeder Draw (CT Sensor)',
+            data: initialActualData,
+            borderColor: '#3B82F6',
+            borderWidth: 2.5,
+            backgroundColor: 'rgba(59, 130, 246, 0.08)',
+            fill: true,
+            pointRadius: 2,
+            pointHoverRadius: 6,
+            tension: 0.3,
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: { duration: 600 },
+        interaction: {
+          mode: 'index',
+          intersect: false,
+        },
+        scales: {
+          x: {
+            grid: { color: 'rgba(255, 255, 255, 0.04)' },
+            ticks: {
+              color: '#64748B',
+              font: { family: 'monospace', size: 10 },
+              maxTicksLimit: 7
+            }
+          },
+          y: {
+            min: 0,
+            suggestedMax: 22,
+            grid: { color: 'rgba(255, 255, 255, 0.06)' },
+            ticks: {
+              color: '#94A3B8',
+              font: { family: 'monospace', size: 10 },
+              callback: val => val + ' A'
+            }
+          }
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: '#091428',
+            borderColor: '#00F0FF44',
+            borderWidth: 1,
+            titleFont: { family: 'monospace', size: 11 },
+            bodyFont: { family: 'monospace', size: 11 },
+            padding: 10,
+            callbacks: {
+              label: context => ` ${context.dataset.label}: ${context.parsed.y.toFixed(2)} A`
+            }
+          }
+        }
+      }
+    });
+
+    // Anomaly & Baseline State Toggling Logic
+    function triggerTheftSimulation(bypassCurrent = 11.6) {
+      if (state.isRelayCutoff) {
+        showToast('Relay Tripped', 'Cannot inject load while protection relay is tripped open.', 'warning');
+        return;
+      }
+
+      state.isTheftActive = true;
+      state.sliderBypassCurrent = bypassCurrent;
+      bypassSlider.value = bypassCurrent;
+      sliderValueDisplay.innerText = `+${bypassCurrent.toFixed(1)} A (Tap Injected)`;
+
+      // UI Banner Updates to Red Alert
+      dynamicAlertBanner.className = 'p-4 sm:p-5 rounded-2xl bg-red-950/70 border border-red-500 text-red-200 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 transition-all duration-300 shadow-xl glow-crimson animate-alert-pulse';
+      bannerHeadline.innerHTML = '⚠️ CRITICAL ALERT: UNMETERED CURRENT DRAW DETECTED AT NODE 01 (FEEDER 4B)';
+      bannerHeadline.className = 'font-mono font-extrabold text-sm sm:text-base text-red-100';
+      bannerSubtext.innerText = 'Bypass current tap identified! Deviation: +11.6A over consumer meter registers. Tamper seal flagged.';
+      bannerIcon.className = 'fa-solid fa-triangle-exclamation';
+      bannerIconWrapper.className = 'w-10 h-10 rounded-xl bg-red-900/90 border border-red-400 text-red-200 flex items-center justify-center text-lg flex-shrink-0 animate-bounce';
+
+      // Navbar Pill Updates
+      navStatusBadge.className = 'hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-950 border border-red-500 text-xs font-mono text-red-400 shadow-inner glow-crimson';
+      navStatusPing.className = 'animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75';
+      navStatusDot.className = 'relative inline-flex rounded-full h-2 w-2 bg-red-500';
+      navStatusText.innerText = 'NODE: ESP32_01 [BREACH / THEFT]';
+      navSimulateText.innerText = '⚠️ Theft Active';
+
+      // Cards styling
+      currentCard.className = 'bg-red-950/40 backdrop-blur-md rounded-2xl border border-red-500/60 p-5 space-y-3 transition glow-crimson';
+      valCurrent.className = 'text-3xl sm:text-4xl font-extrabold font-mono text-red-400 tracking-tight transition-colors';
+      valCurrentStatus.innerText = 'OVERLOAD TAMPER (+240%)';
+      valCurrentStatus.className = 'text-red-400 font-bold';
+
+      tamperCard.className = 'bg-red-950/40 backdrop-blur-md rounded-2xl border border-red-500/60 p-5 space-y-3 transition glow-crimson';
+      valTamperStatus.innerText = 'BREACHED [FLAGGED]';
+      valTamperStatus.className = 'text-xl sm:text-2xl font-extrabold font-mono text-red-400 tracking-tight';
+      tamperIconWrap.className = 'w-7 h-7 rounded-lg bg-red-950 border border-red-500/60 text-red-400 flex items-center justify-center text-xs';
+      tamperIcon.className = 'fa-solid fa-lock-open';
+
+      // Chart Legend changes
+      document.getElementById('actualLegendColor').className = 'w-3.5 h-1 bg-red-500 rounded-full inline-block';
+      document.getElementById('actualLegendText').innerText = 'Actual Draw [THEFT SPIKE]';
+      document.getElementById('actualLegendText').className = 'text-red-400 font-bold';
+      telemetryChart.data.datasets[1].borderColor = '#EF4444';
+      telemetryChart.data.datasets[1].backgroundColor = 'rgba(239, 68, 68, 0.18)';
+
+      // SVG Topology updates
+      theftHookLine.classList.remove('hidden');
+      theftHookBadge.classList.remove('hidden');
+      hubCircle.setAttribute('stroke', '#EF4444');
+      hubInnerCircle.setAttribute('fill', '#EF4444');
+      hubLabel.setAttribute('fill', '#EF4444');
+      feederWireMain.setAttribute('stroke', '#EF4444');
+
+      // Audio & Toast Alert
+      playAlertChirp(true);
+      showToast('⚠️ Anomaly Flagged', 'Unauthorized load deviation (+11.6A) detected on Feeder 4B Node 01!', 'error');
+
+      // Terminal Log
+      logToTerminal('CRITICAL DISCREPANCY: Current mismatch E_loss = |I_feeder - sum(I_meter)| = 11.58A', 'alert');
+      logToTerminal('Optical enclosure tamper seal loop opened on GPIO 4!', 'alert');
+      logToTerminal('Pushing MQTT alert to SCADA topic: /grid/tx04b/node01/theft_event', 'cmd');
+
+      // Auto-dispatch inspection team after 3s
+      if (state.patrol.status === 'STANDBY') {
+        setTimeout(dispatchPatrolSquad, 2500);
+      }
+    }
+
+    function resetToBaseline() {
+      state.isTheftActive = false;
+      state.isRelayCutoff = false;
+      state.sliderBypassCurrent = 0;
+      bypassSlider.value = 0;
+      sliderValueDisplay.innerText = '0.0 A (Neutral)';
+
+      // Banner to nominal green
+      dynamicAlertBanner.className = 'p-4 sm:p-5 rounded-2xl bg-emerald-950/40 border border-emerald-500/40 text-emerald-300 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 transition-all duration-300 shadow-lg';
+      bannerHeadline.innerHTML = 'STATUS: ALL FEEDERS NOMINAL - NO ILLEGAL TAP DETECTED';
+      bannerHeadline.className = 'font-mono font-bold text-sm sm:text-base text-emerald-200';
+      bannerSubtext.innerText = 'Transformer Station #4B / Loop Circuit 01 · Differential Residual: < 0.15A (Allowed tolerance margin)';
+      bannerIcon.className = 'fa-solid fa-shield-check';
+      bannerIconWrapper.className = 'w-10 h-10 rounded-xl bg-emerald-900/60 border border-emerald-400/30 text-emerald-300 text-lg flex-shrink-0';
+
+      // Navbar Pill
+      navStatusBadge.className = 'hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-900/90 border border-emerald-500/40 text-xs font-mono text-emerald-400 shadow-inner';
+      navStatusPing.className = 'animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75';
+      navStatusDot.className = 'relative inline-flex rounded-full h-2 w-2 bg-emerald-500';
+      navStatusText.innerText = 'NODE: ESP32_01 [NOMINAL]';
+      navSimulateText.innerText = '⚡ Simulate Bypass/Theft';
+
+      // Cards
+      currentCard.className = 'bg-slate-900/70 backdrop-blur-md rounded-2xl border border-slate-800 p-5 space-y-3 hover:border-cyan-500/40 transition';
+      valCurrent.className = 'text-3xl sm:text-4xl font-extrabold font-mono text-cyan-300 tracking-tight transition-colors';
+      valCurrentStatus.innerText = 'Nominal Load';
+      valCurrentStatus.className = 'text-emerald-400 font-semibold';
+
+      tamperCard.className = 'bg-slate-900/70 backdrop-blur-md rounded-2xl border border-slate-800 p-5 space-y-3 transition';
+      valTamperStatus.innerText = 'INTACT [SECURE]';
+      valTamperStatus.className = 'text-xl sm:text-2xl font-extrabold font-mono text-emerald-400 tracking-tight';
+      tamperIconWrap.className = 'w-7 h-7 rounded-lg bg-emerald-950 border border-emerald-500/30 text-emerald-400 flex items-center justify-center text-xs';
+      tamperIcon.className = 'fa-solid fa-lock';
+      valRelayStatus.innerText = 'Relay Closed';
+      valRelayStatus.className = 'text-emerald-400 font-semibold';
+      cutoffBtnText.innerText = 'Remote Relay Trip (Isolate)';
+
+      // Chart Legend
+      document.getElementById('actualLegendColor').className = 'w-3.5 h-1 bg-blue-500 rounded-full inline-block';
+      document.getElementById('actualLegendText').innerText = 'Actual Feeder Draw (CT Sensor)';
+      document.getElementById('actualLegendText').className = 'text-blue-400';
+      telemetryChart.data.datasets[1].borderColor = '#3B82F6';
+      telemetryChart.data.datasets[1].backgroundColor = 'rgba(59, 130, 246, 0.08)';
+
+      // SVG
+      theftHookLine.classList.add('hidden');
+      theftHookBadge.classList.add('hidden');
+      hubCircle.setAttribute('stroke', '#00F0FF');
+      hubInnerCircle.setAttribute('fill', '#00F0FF');
+      hubLabel.setAttribute('fill', '#38BDF8');
+      feederWireMain.setAttribute('stroke', '#00F0FF');
+
+      playAlertChirp(false);
+      showToast('System Baseline Restored', 'All feeder metrics returned to nominal tolerance levels.', 'info');
+      logToTerminal('Calibration routine completed. Threshold ΔI reset to 0.15A. Normal line operation resumed.');
+    }
+
+    // Remote Relay Trip (Isolate Load)
+    function toggleRelayTrip() {
+      state.isRelayCutoff = !state.isRelayCutoff;
+      if (state.isRelayCutoff) {
+        valRelayStatus.innerText = 'TRIPPED [OPEN]';
+        valRelayStatus.className = 'text-red-400 font-bold';
+        cutoffBtnText.innerText = 'Restore Relay Interlock';
+        showToast('Protection Relay Tripped', 'Node 01 latching relay tripped open. Line power isolated.', 'warning');
+        logToTerminal('RELAY COMMAND: GPIO 26 PULSE HIGH -> Contactors Opened. Circuit Isolated.', 'warn');
+      } else {
+        valRelayStatus.innerText = 'Relay Closed';
+        valRelayStatus.className = 'text-emerald-400 font-semibold';
+        cutoffBtnText.innerText = 'Remote Relay Trip (Isolate)';
+        showToast('Relay Closed', 'Contactor reset to closed position. Normal load restored.', 'info');
+        logToTerminal('RELAY COMMAND: Contactors reset to closed.', 'cmd');
+      }
+    }
+
+    // Inspection Patrol Dispatch Logic & Trajectory Animation
+    let patrolInterval = null;
+    function dispatchPatrolSquad() {
+      if (state.patrol.status === 'DISPATCHED') return;
+      state.patrol.status = 'DISPATCHED';
+      state.patrol.progress = 0;
+      state.patrol.speed = 52; // km/h
+      state.patrol.eta = 4; // minutes
+
+      patrolStatusText.innerText = 'EN ROUTE TO TAMPER SITE';
+      patrolStatusText.className = 'text-amber-400 font-bold animate-pulse';
+      showToast('Patrol Dispatched', `Enforcement Vehicle ${state.patrol.plate} en route to Pole #PL-89.`, 'warning');
+      logToTerminal(`ENFORCEMENT DISPATCH: Squad assigned. Driver: Insp. R. Sharma | Plate: ${state.patrol.plate}`, 'cmd');
+
+      if (patrolInterval) clearInterval(patrolInterval);
+      patrolInterval = setInterval(() => {
+        state.patrol.progress += 2.5;
+        state.patrol.eta = Math.max(0.2, (4 * (1 - state.patrol.progress / 100))).toFixed(1);
+        patrolEtaText.innerText = `${state.patrol.eta} min`;
+        patrolSpeedText.innerText = `${(45 + Math.random() * 15).toFixed(0)} km/h`;
+
+        // Interpolate along route path: (50,190) -> (240,120) -> (420,60)
+        const t = state.patrol.progress / 100;
+        let curX, curY;
+        if (t < 0.5) {
+          const subT = t * 2;
+          curX = 50 + subT * (240 - 50);
+          curY = 190 - Math.sin(subT * Math.PI / 2) * (190 - 120);
+        } else {
+          const subT = (t - 0.5) * 2;
+          curX = 240 + subT * (420 - 240);
+          curY = 120 - subT * (120 - 60);
+        }
+
+        patrolVehicleGroup.setAttribute('transform', `translate(${curX}, ${curY})`);
+
+        if (state.patrol.progress >= 100) {
+          clearInterval(patrolInterval);
+          state.patrol.status = 'ON_SITE';
+          state.patrol.speed = 0;
+          patrolStatusText.innerText = 'ARRIVED ON SITE [INTERDICTION]';
+          patrolStatusText.className = 'text-red-400 font-bold';
+          patrolEtaText.innerText = '0.0 min';
+          patrolSpeedText.innerText = '0 km/h';
+          showToast('Squad Arrived', 'Patrol unit at Pole #PL-89. Physical bypass hook verified for confiscation.', 'error');
+          logToTerminal(`PATROL ARRIVED: Vehicle ${state.patrol.plate} on site. Inspection team inspecting physical tap hook.`, 'alert');
+        }
+      }, 400);
+    }
+
+    // Node Inspection Modal / Inspector Box in SVG
+    window.inspectNode = function(nodeId) {
+      const detailName = document.getElementById('detailNodeName');
+      const detailCoords = document.getElementById('detailNodeCoords');
+      const detailCurrent = document.getElementById('detailCurrent');
+      const detailTamper = document.getElementById('detailTamper');
+
+      if (nodeId === 'substation') {
+        detailName.innerText = 'Substation TX-04B (Primary Distribution Step-Down)';
+        detailCoords.innerText = 'Capacity: 500kVA · High-side: 11,000V · Low-side: 415V Phase-to-Phase';
+        detailCurrent.innerText = (state.telemetry.feederCurrent * 4.2).toFixed(1) + ' A (3-Phase)';
+        detailTamper.innerText = 'SUBSTATION SECURE';
+        showToast('Substation Inspected', 'Primary Transformer TX-04B operating nominally.', 'info');
+      } else if (nodeId === 'esp32_hub') {
+        detailName.innerText = 'ESP32 Monitoring Hub (Node 01 - Testbed)';
+        detailCoords.innerText = 'GPS: 18.5204° N, 73.8567° E · Pole #PL-89 · Feed Loop 4B';
+        detailCurrent.innerText = state.telemetry.feederCurrent.toFixed(2) + ' A';
+        detailTamper.innerText = state.isTheftActive ? 'SEAL BREACHED (LOW)' : 'SEALED (HIGH)';
+        showToast('Node 01 Selected', 'Showing live micro-telemetry for ESP32 sensor package.', 'info');
+      } else {
+        const meterNum = nodeId.replace('meter_', 'MTR-10');
+        detailName.innerText = `Consumer Smart Meter ${meterNum}`;
+        detailCoords.innerText = 'Household Endpoint · Tariff: Residential Domestic (LT-1) · Bidirectional Meter';
+        detailCurrent.innerText = (1.1 + Math.random() * 0.4).toFixed(2) + ' A';
+        detailTamper.innerText = 'REVERT REGISTER: OK';
+        showToast(`Meter ${meterNum}`, 'Consumer metering unit operating within normal profile.', 'info');
+      }
+    };
+
+    // Telemetry Update Loop (Runs every 1.5 seconds)
+    function updateTelemetryCycle() {
+      const now = new Date();
+      bannerTimestamp.innerText = `Live Timestamp: ${now.toLocaleTimeString()}`;
+
+      // Simulate natural voltage jitter (230V ± 2V)
+      state.telemetry.voltage = +(230.8 + (Math.sin(now.getTime() / 2000) * 1.6) + (Math.random() * 0.4 - 0.2)).toFixed(1);
+
+      // Expected base household current
+      const baseExpected = +(4.80 + Math.sin(now.getTime() / 5000) * 0.25).toFixed(2);
+      state.telemetry.expectedCurrent = baseExpected;
+
+      // Actual Feeder current
+      if (state.isRelayCutoff) {
+        state.telemetry.feederCurrent = 0.00;
+        state.telemetry.activePower = 0.00;
+        state.telemetry.lossRatio = 0.0;
+      } else if (state.isTheftActive || state.sliderBypassCurrent > 0) {
+        const addedBypass = state.sliderBypassCurrent || 11.6;
+        state.telemetry.feederCurrent = +(baseExpected + addedBypass + (Math.random() * 0.3)).toFixed(2);
+        state.telemetry.powerFactor = +(0.88 - (addedBypass / 80)).toFixed(2);
+        state.telemetry.temp = +(48.5 + (addedBypass * 1.1)).toFixed(1);
+        state.telemetry.lossRatio = +((addedBypass / state.telemetry.feederCurrent) * 100).toFixed(1);
+      } else {
+        state.telemetry.feederCurrent = +(baseExpected + (Math.random() * 0.12 - 0.06)).toFixed(2);
+        state.telemetry.powerFactor = 0.97;
+        state.telemetry.temp = +(38.2 + Math.random() * 0.5).toFixed(1);
+        state.telemetry.lossRatio = +(Math.random() * 0.4).toFixed(1);
+      }
+
+      // Active Power (kW) = V * I * PF / 1000
+      state.telemetry.activePower = +( (state.telemetry.voltage * state.telemetry.feederCurrent * state.telemetry.powerFactor) / 1000 ).toFixed(2);
+
+      // Update Metric Card DOM
+      valVoltage.innerText = state.telemetry.voltage.toFixed(1);
+      valCurrent.innerText = state.telemetry.feederCurrent.toFixed(2);
+      valPower.innerText = state.telemetry.activePower.toFixed(2);
+      valPowerStatus.innerText = `PF: ${state.telemetry.powerFactor}`;
+      valFrequency.innerText = `${(50.00 + (Math.random() * 0.04 - 0.02)).toFixed(2)} Hz`;
+      valPowerFactor.innerText = `${state.telemetry.powerFactor} Lag`;
+      valNodeTemp.innerText = `${state.telemetry.temp} °C`;
+      
+      if (state.telemetry.lossRatio > 15) {
+        valLossRatio.innerText = `${state.telemetry.lossRatio}% [ANOMALOUS]`;
+        valLossRatio.className = 'font-bold text-red-400 animate-pulse';
+      } else {
+        valLossRatio.innerText = `${state.telemetry.lossRatio}% [OK]`;
+        valLossRatio.className = 'font-bold text-emerald-400';
+      }
+
+      // Update Chart.js datasets
+      const timeLabel = now.toLocaleTimeString();
+      telemetryChart.data.labels.push(timeLabel);
+      telemetryChart.data.datasets[0].data.push(state.telemetry.expectedCurrent);
+      telemetryChart.data.datasets[1].data.push(state.telemetry.feederCurrent);
+
+      // Keep sliding window of 16 points
+      if (telemetryChart.data.labels.length > 16) {
+        telemetryChart.data.labels.shift();
+        telemetryChart.data.datasets[0].data.shift();
+        telemetryChart.data.datasets[1].data.shift();
+      }
+      telemetryChart.update('none');
+
+      // Random terminal telemetry heartbeat
+      if (Math.random() > 0.4) {
+        const tag = state.isTheftActive ? 'ANOMALY_EVENT' : 'TELEMETRY';
+        logToTerminal(`[${tag}] V_RMS=${state.telemetry.voltage}V | I_LINE=${state.telemetry.feederCurrent}A | P=${state.telemetry.activePower}kW | RESIDUAL=${(state.telemetry.feederCurrent - state.telemetry.expectedCurrent).toFixed(2)}A`);
+      }
+    }
+
+    // Event Listeners Setup
+    navSimulateBtn.addEventListener('click', () => {
+      if (state.isTheftActive) {
+        resetToBaseline();
+      } else {
+        triggerTheftSimulation(11.6);
+      }
+    });
+
+    injectTheftBtn.addEventListener('click', () => triggerTheftSimulation(11.6));
+    resetBaselineBtn.addEventListener('click', resetToBaseline);
+    remoteCutoffBtn.addEventListener('click', toggleRelayTrip);
+    dispatchPatrolBtn.addEventListener('click', dispatchPatrolSquad);
+
+    // Audio synthesizer toggle
+    audioToggleBtn.addEventListener('click', () => {
+      state.audioSynthEnabled = !state.audioSynthEnabled;
+      if (state.audioSynthEnabled) {
+        audioIcon.className = 'fa-solid fa-volume-high text-cyan-400';
+        audioLabel.innerText = 'Siren Synth: ON';
+        showToast('Audio Synth Enabled', 'Acoustic sirens will sound upon tamper triggers.', 'info');
+      } else {
+        audioIcon.className = 'fa-solid fa-volume-xmark text-slate-500';
+        audioLabel.innerText = 'Siren Synth: MUTED';
+        showToast('Audio Muted', 'Audio alerts silenced.', 'info');
+      }
+    });
+
+    // Custom Load Slider Listener
+    bypassSlider.addEventListener('input', (e) => {
+      const val = parseFloat(e.target.value);
+      state.sliderBypassCurrent = val;
+      sliderValueDisplay.innerText = val > 0 ? `+${val.toFixed(1)} A (Tap Injected)` : '0.0 A (Neutral)';
+
+      if (val > 2.0 && !state.isTheftActive) {
+        triggerTheftSimulation(val);
+      } else if (val <= 0.5 && state.isTheftActive) {
+        resetToBaseline();
+      }
+    });
+
+    // Clear Terminal Log
+    clearTerminalBtn.addEventListener('click', () => {
+      serialTerminal.innerHTML = '';
+      logToTerminal('Terminal console buffer cleared.');
+    });
+
+    // Export Incident Log (CSV / JSON)
+    exportLogBtn.addEventListener('click', () => {
+      const incidentReport = {
+        system: 'VOLTGUARD_SIH_2026',
+        exportTime: new Date().toISOString(),
+        nodeId: 'ESP32_FEEDER_04B_01',
+        gridSubstation: 'TX-04B (Sector 7B)',
+        theftStatus: state.isTheftActive ? 'BREACH_CONFIRMED' : 'NOMINAL',
+        currentMetrics: state.telemetry,
+        patrolUnit: state.patrol
+      };
+
+      const blob = new Blob([JSON.stringify(incidentReport, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `VOLTGUARD_INCIDENT_LOG_${Date.now()}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      showToast('Log Exported', 'Telemetry snapshot and incident audit trail saved as JSON.', 'info');
+      logToTerminal('AUDIT EXPORT: Encrypted cryptographic incident report compiled and downloaded.', 'cmd');
+    });
+
+    // Boot Initial Terminal Messages
+    logToTerminal('VOLTGUARD FIRMWARE v2.6.4 booting on ESP32-WROOM-32D (rev 1)...');
+    logToTerminal('ZMPT101B voltage calibration offset: 2.503V (midpoint ADC).');
+    logToTerminal('SCT-013 current calibration factor: 30.0A/V initialized.');
+    logToTerminal('FreeRTOS task "RMS_SAMPLER" pinned to Core 0 (Priority 5).');
+    logToTerminal('WiFi connected to AP: [DISCOM_SUBSTATION_SECURE] - IP: 192.168.1.89');
+    logToTerminal('MQTT client connected to broker ssl://iot.voltguard.grid:8883');
+    logToTerminal('System nominal. Mathematical theft detection active.');
+
+    // Start Telemetry Timer (1500ms)
+    setInterval(updateTelemetryCycle, 1500);
+
+    // Initial first run
+    updateTelemetryCycle();
+  </script>
+</body>
+</html>
